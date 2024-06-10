@@ -1,0 +1,312 @@
+---
+title: "Homework 2 - New York City Flights 2013"
+author: "Nanmanat Disayakamonpan"
+format:   
+  html:                     
+    standalone: true        # These are some YAML configurations which are not essential but you may play with:
+                            # standalone means that quarto renders to a html-file with a header 
+                            # and all css javascript needed
+    embed-resources: true   # The html will also embed all figures you produce 
+                            # (usually they would be in a directory). So differently from traditional html files
+                            # this html file would be self-contained. You could for example email it as one file 
+    code-fold: true         # We enable the code folding such that we only need to look at code if we want
+                            # More info at https://quarto.org/docs/output-formats/html-publishing.html
+    number-sections: true   # We number the sections
+---
+
+This analysis works with dataframes in the package `nycflights13` about flights, specifically a sample of domestic flights that departed from the three major New York City airports in 2013. 
+
+# Data overview
+
+```{r}
+#| label: packages-data
+#| message: false  # We do not want to see the common tidyverse message in our document
+#| echo: false
+library(tidyverse)
+library(patchwork)          # Install this package before. It helps to combine different plots.
+library(nycflights13)
+```
+
+```{r}
+#| echo: false
+airlines <- airlines
+airports <- airports
+planes <- planes
+flights <- flights
+weather <- weather
+```
+
+There are five tables in the data set. In total there is information about `r nrow(airlines)` *airlines*, `r nrow(airports)`  *airports*, `r nrow(planes)` *planes*, and `r nrow(flights)` *flights*. Additionally there are `r nrow(weather)` *weather* observations. 
+
+* **Variable Description**
+    + ***origin***
+        - The starting point of the airport.
+    + ***dep_delay & arr_delay***
+        - Departure and arrival delays, in minutes. Negative times represent early departures/arrivals.
+    + ***engine & seat***
+        - Number of engines and seats.
+
+# Data visualization
+
+## The bar chart showing the number of flights from each airport of the origin
+```{r}
+#| label: flightsorigin
+#| echo: false
+ggplot(data = flights, mapping = aes(x = origin, fill = origin)) + 
+  geom_bar(width = 0.5) +
+  labs(title = "Show the number of flights from each origin",
+      caption = "Data from nycflights13 package",
+      x = "",
+      y = "The Number of Flights",
+      fill = "Origin") +
+  scale_fill_manual(values = c("darkblue", "blue", "gray")) +
+  theme_minimal()
+```
+
+## The histogram showing the number of flights based on distance in miles
+```{r}
+#| label: flightsdistance
+#| echo: false
+ggplot(data = flights, mapping = aes(x = distance)) + 
+  geom_histogram(binwidth = 50, color = "white", fill = "darkblue") +
+  labs(title = "Show the number of flights based on distance",
+      caption = "Data from nycflights13 package",
+      x = "Distance (in miles)",
+      y = "The Number of Flights") +
+  theme_minimal()
+```
+
+## The distribution of the number of seats in airplanes with diverse data visualization
+```{r}
+#| label: distributions
+#| echo: false
+g1 <- ggplot(data = planes, mapping = aes(y = seats, x = 0)) + 
+  geom_point(color = "darkred") +
+  theme_minimal()
+g2 <- ggplot(data = planes, mapping = aes(y = seats)) + 
+  geom_boxplot(color = "darkblue") +
+  theme_minimal()
+g3 <- ggplot(data = planes, mapping = aes(y = seats)) +
+  geom_histogram(binwidth = 50, color = "darkblue", fill = "blue") +
+  theme_minimal()
+g1 + g2 + g3
+```
+
+## The boxplot showing the number of seats based on the engine type
+```{r}
+#| label: engine-seats
+#| echo: false
+ggplot(data = planes, aes(x = engine, y = seats)) +
+  geom_boxplot(color = "gray", fill = "darkblue") +
+  labs(title = "Show the number of seats based on the engine type", 
+       x = "Engine Type", 
+       y = "Number of Seats") +
+  theme_minimal()
+```
+
+## The scatterplot showing arrival and departure delay based on the airport of origin
+```{r}
+#| label: delays
+#| echo: false
+flights <- na.omit(flights)
+sampled_flights <- sample_n(flights, 10000)
+
+origin_colors <- c("EWR" = "darkblue", "JFK" = "blue", "LGA" = "deepskyblue")
+
+ggplot(data = sampled_flights, aes(x = dep_delay, y = arr_delay, fill = origin)) +
+  geom_point(shape = 21, color = "white", size = 2) +
+  labs(title = "Show arrival and departure delays based on the airport of origin", 
+       x = "Arrival Delay", 
+       y = "Departure Delay") +
+  scale_fill_manual(values = origin_colors) +
+  theme_minimal()
+```
+
+## The scatterplot showing the location of the airport
+```{r}
+#| label: airportlocations
+#| echo: false
+ggplot(data = airports, mapping = aes(x = lon, y = lat, fill = tz)) +
+  geom_point(shape = 21, color = "white", size = 2) +
+  labs(title = "Show the location of the airport", 
+       x = "Longitude", 
+       y = "Latitude",
+       color = "Timezone") +
+  scale_color_gradient(low = "deepskyblue", high = "darkblue") +
+  theme_minimal()
+```
+
+
+# Data Wrangling
+
+## The histogram showing the average speed (km/h) of the flights
+```{r}
+#| label: flightsaveragespeed
+#| echo: false
+flights %>% 
+  mutate(speed = (distance * 1.60934) / (air_time / 60)) %>% 
+  select(air_time, distance, speed) %>%  
+  ggplot(mapping = aes(x = speed)) +
+  geom_histogram(binwidth = 20, fill = "darkblue", color = "white") +
+  labs(title = "Histogram of Flight Speed",
+       x = "Speed (km/h)",
+       y = "Frequency") + 
+  theme_minimal()
+```
+
+```{r}
+#| label: filtering
+#| echo: false
+filtered_flights1 <- flights %>%
+  filter(arr_delay >= 120)
+filtered_flights2 <- flights %>%
+  filter(dest %in% c("IAH", "HOU"))
+filtered_flights3 <- flights %>%
+  filter(arr_delay > 120, dep_delay <= 0)
+filtered_flights4 <- flights %>%
+  filter(dep_delay >= 60, (dep_delay - arr_delay) >= 30)
+```
+
+## The summarizing of the mean of the departure delay for each airport of the origin
+```{r}
+#| label: summarizing
+#| echo: false
+flights %>% 
+  group_by(origin) %>%
+  summarize(mean_dep_delay = mean(dep_delay, na.rm = TRUE))
+```
+
+# Data Audit
+
+## The scatterplot showing the location of the strange airports
+```{r}
+#| label: strangeairportlocations
+#| echo: false
+strange_airports <- airports %>%
+  filter(lon > -65)
+
+strange_airports %>% 
+ggplot(mapping = aes(x = lon, y = lat, fill = tz)) +
+  geom_point(shape = 21, color = "white", size = 2) +
+  labs(title = "Show the location of the strange airports", 
+       x = "Longitude", 
+       y = "Latitude",
+       color = "Timezone") +
+  scale_color_gradient(low = "deepskyblue", high = "darkblue") +
+  theme_minimal()
+```
+
+As the graph shown above, you can see some strange airport locations of the United States of America which are **Deer Valley Municipal Airport**, **Dillant Hopkins Airport**, and **Montgomery Field**. From my internet research, I found two types of mistakes from the dataset ***nycflights13***. 
+
+First, some data in longitude should be shown in minus value. For example, **Deer Valley Municipal Airport** is located in Phoenix, Arizona, USA, where the latitude is 33.41170, and the longitude is -112.45700. On the other hand, **Montgomery Field** is located in San Diego, California, USA where the latitude is 32.47590, and the longitude is -117.75900. However, the data set shows that its incorrect longitudes are 112.457000 and 117.75900, respectively. 
+
+Second, The coordinates for **Dillant Hopkins Airport**, latitude 72.27083 and longitude 42.89833, appear to be incorrect or swapped. These values are unusual for an airport in Keene, New Hampshire, USA. The latitude value is exceptionally high, and the longitude value is unusually low for a location in the United States. A likely explanation is that there may be a data entry error or a mix-up in the dataset, resulting in the latitude and longitude being swapped or incorrectly entered. 
+
+However, the coordinates for **Eareckson Air Station**, latitude 52.71227 and longitude 174.11362, seem accurate for a location in Alaska. Eareckson Air Station is located on Shemya Island, which is part of the Aleutian Islands in Alaska, USA.
+
+# More Data Visualization
+
+In the following we provide some more information about the flights of different airlines, about the age or planes departing for the three New York airports and the weekly percipation on the three airports.
+
+## The bar chart showing number of flights for each airline
+```{r}
+#| label: graphsaboutairlines
+#| echo: false
+flights1 <- flights %>%
+  inner_join(airlines, by = "carrier") 
+
+ggplot(flights1, aes(y = fct_rev(fct_infreq(name)))) + #geom_bar needs only either x or y
+  geom_bar(fill = "darkblue") + 
+  labs(title = "The Number of Flights for Each Airline",
+       x = "Count of Flights",
+       y = "") +
+  theme_minimal()
+```
+
+## The bar chart showing the mean of the departure delay by airline
+```{r}
+#| label: meandeparturedelay
+#| echo: false
+departure_delay_means <- flights %>%
+  group_by(carrier) %>%
+  summarise(mean_dep_delay = mean(dep_delay, na.rm = TRUE))
+
+departure_delay_means <- departure_delay_means %>%
+  inner_join(airlines, by = "carrier") %>% 
+  mutate(carrier = fct_reorder(carrier, mean_dep_delay))
+
+ggplot(departure_delay_means, aes(x = mean_dep_delay, y = fct_reorder(name, mean_dep_delay))) +
+  geom_col(fill = "blue") +
+  labs(title = "Mean Departure Delay by Airline",
+       x = "Mean Departure Delay",
+       y = "") +
+  theme_minimal()
+```
+
+## The bar chart showing the mean of departure delay and arrival delay by airline
+```{r}
+#| label: meanofdepandarrdelay
+#| echo: false
+delay_long <- flights %>%
+  pivot_longer(cols = c(dep_delay, arr_delay), names_to = "delay_type", values_to = "mean_delay") %>%
+  group_by(carrier, delay_type) %>%
+  summarise(mean_delay = mean(mean_delay, na.rm = TRUE), .groups = 'drop') %>% 
+  inner_join(airlines, by = c("carrier" = "carrier"))
+
+delay_long <- delay_long %>%
+  mutate(carrier = fct_reorder(carrier, mean_delay))
+
+ggplot(delay_long, aes(x = mean_delay, y = name, fill = delay_type)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Mean Departure and Arrival Delay by Airline",
+       x = "Airline",
+       y = "Mean Delay") +
+  theme_minimal()
+
+```
+
+## The bar chart showing the number of departing planes by manufactured year
+```{r}
+#| label: departingplanesyear
+#| echo: false
+flights_data <- flights %>%
+  inner_join(planes %>% rename(manufactured_year = year), by = "tailnum") %>%
+  inner_join(airports %>% rename(origin_name = name), by = c("origin" = "faa"))
+
+flight_count <- flights_data %>%
+  group_by(manufactured_year, origin_name) %>%
+  summarize(number_of_flights = n(), .groups = "drop_last") 
+
+flight_count <- flight_count %>%
+  filter(!is.na(manufactured_year) & !is.na(number_of_flights))
+
+ggplot(flight_count, aes(x = manufactured_year, y = number_of_flights, fill = origin_name)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Number of Departing Planes by Manufactured Year",
+       x = "Manufactured Year",
+       y = "Number of Flights") +
+  facet_wrap(~ origin_name, scales = "free_y") +
+  theme_minimal()
+
+```
+
+## The line graph showing the total weekly precipitation at three airports
+```{r}
+#| label: weeklypercipation
+#| echo: false
+weather_data <- weather
+  weather_data %>% 
+  mutate(date = paste(weather_data$year, weather_data$month, weather_data$day, sep = "-")) %>%
+  mutate(date1 = as.Date(date)) %>% 
+  mutate(week = week(date1)) %>% 
+  group_by(week, origin) %>% 
+  summarise(total_precipation = sum(precip, na.rm = TRUE), .groups = 'drop') %>% 
+  ggplot(aes(x = week, y = total_precipation, color = origin)) +
+  geom_line() +
+  labs(title = "Total Weekly Precipitation at Three Airports",
+       x = "Week",
+       y = "Total Precipitation",
+       color = "Airport") +
+  theme_minimal()
+```
+

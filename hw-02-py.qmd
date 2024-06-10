@@ -1,0 +1,333 @@
+---
+title: "Homework 2 - New York City Flights 2013"
+author: "Nanmanat Disayakamonpan"
+format:   
+  html:                     
+    standalone: true        # These are some YAML configurations which are not essential but you may play with:
+                            # standalone means that quarto renders to a html-file with a header 
+                            # and all css javascript needed
+    embed-resources: true   # The html will also embed all figures you produce 
+                            # (usually they would be in a directory). So differently from traditional html files
+                            # this html file would be self-contained. You could for example email it as one file 
+    code-fold: true         # We enable the code folding such that we only need to look at code if we want
+                            # More info at https://quarto.org/docs/output-formats/html-publishing.html
+    number-sections: true   # We number the sections
+---
+
+This analysis works with datasets in the package `nycflights13` about flights, specifically a sample of domestic flights that departed from the three major New York City airport in 2013. 
+
+# Data overview
+
+```{python}
+#| label: packages-data
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+from nycflights13 import flights, airlines, airports, weather, planes
+import warnings
+from sklearn.utils import resample
+
+warnings.filterwarnings("ignore", category=FutureWarning, module="seaborn._oldcore")
+
+```
+
+```{python}
+#num_airlines = len(airlines)
+#print(num_airlines)
+#num_airports = len(airports)
+#print(num_airports)
+#num_planes = len(planes)
+#print(num_planes)
+#num_flights = len(flights)
+#print(num_flights)
+#num_weather = len(weather)
+#print(num_weather)
+```
+
+There are five tables in the data set. In total there is information about *16 airlines*, *1458 airports*,*3322 planes*, and *336776 flights*. Additionally there are *26115 weather* observations.
+
+* **Variable Description**
+    + ***origin***
+        - The starting point of the airport.
+    + ***dep_delay & arr_delay***
+        - Departure and arrival delays, in minutes. Negative times represent early departures/arrivals.
+    + ***engine & seat***
+        - Number of engines and seats.
+
+```{python}
+#| label: data-info
+
+# Check what is the differences between R:glimpse and pandas:info
+#flights.info()
+#airports.info()
+#airlines.info()
+
+# Note: Inline code is also possible for python but may be a bit more tweaky. We omit it here.
+```
+
+# Data visualization
+
+## The bar chart showing the number of flights from each airport of the origin
+```{python}
+#| label: flightsorigin
+#| echo: false
+
+plt.figure(figsize=(10, 6))
+sns.countplot(data=flights, x='origin', palette = 'viridis', width = 0.5)
+plt.title('Show the number of flights from each origin')
+plt.xlabel('Origin')
+plt.ylabel('The Number of Flights')
+plt.show(close=None, block=None)
+```
+
+## The histogram showing the number of flights based on distance in miles
+```{python}
+#| label: flightsdistance
+#| echo: false
+
+fig,ax = plt.subplots(figsize=(10,6))
+sns.histplot(data=flights,x='distance', color='darkblue', edgecolor = 'white', binwidth=500, kde=False)
+plt.title('Show the number of flights based on distance')
+plt.xlabel('Distance (in miles)')
+plt.ylabel('The Number of Flights')
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.show(close=None, block=None)
+```
+
+## The distribution of the number of seats in airplanes with diverse data visualization
+```{python}
+#| label: distributions
+#| echo: false
+fig,ax = plt.subplots(nrows=1,ncols=3,figsize=(10,6))
+#fig,[ax1,ax2,ax3] = plt.subplots(nrows=1,ncols=3,figsize=(24,12)) ## Or define the array elements
+ax[0].plot(np.zeros(len(planes)),planes['seats'],'k.')
+
+sns.boxplot(data=planes,y='seats', 
+    boxprops={'facecolor':'blue'},
+    ax=ax[1])
+sns.histplot(data=planes,y='seats', 
+    binwidth = 50, color='blue',
+    ax=ax[2])
+plt.show(close=None, block=None)
+```
+
+## The boxplot showing the number of seats based on the engine type
+```{python}
+#| label: engine-seats
+#| echo: false
+
+plt.figure(figsize=(10, 6))
+
+sns.boxplot(data=planes, x='engine', y='seats', color='darkblue', flierprops=dict(markerfacecolor='0.75', markersize=5))
+plt.title('Number of Seats Based on Engine Type')
+plt.xlabel('Engine Type')
+plt.ylabel('Number of Seats')
+plt.xticks(rotation=45)  # Rotate x-axis labels for better readability
+
+plt.tight_layout()
+plt.show(close=None, block=None)
+```
+
+## The scatterplot showing arrival and departure delay based on the airport of origin
+```{python}
+#| label: delays
+#| echo: false
+
+flights = flights.dropna()
+sampled_flights = flights.sample(n=10000)
+
+origin_colors = {"EWR": "darkblue", "JFK": "blue", "LGA": "deepskyblue"}
+
+plt.figure(figsize=(10, 6))
+sns.scatterplot(data = sampled_flights, x="dep_delay", y="arr_delay", hue="origin", palette=origin_colors, edgecolor="white", linewidth=0.5)
+plt.title("Show arrival and departure delays based on the airport of origin")
+plt.xlabel("Departure Delay")
+plt.ylabel("Arrival Delay")
+plt.show()
+```
+
+## The scatterplot showing the location of the airport
+```{python}
+#| label: airportlocations
+#| echo: false
+
+fig,ax = plt.subplots(figsize=(10,6))
+sns.scatterplot(data=airports, x='lon', y='lat', hue='tzone', palette='Set3', edgecolor='white', s=50)
+
+plt.title("Show the location of the airport")
+plt.xlabel("Longitude")
+plt.ylabel("Latitude")
+
+plt.show(close=None, block=None)
+```
+
+# Data Wrangling
+
+## The histogram showing the average speed (km/h) of the flights
+```{python}
+#| label: flightsaveragespeed
+#| echo: false
+flights = flights.copy()  # Create a copy of the DataFrame
+
+flights.loc[:, 'speed'] = (flights['distance'] * 1.60934) / (flights['air_time'] / 60)
+
+plt.figure(figsize=(9, 6))
+plt.hist(flights['speed'], bins=range(0, int(flights['speed'].max()) + 20, 20), color='darkblue', edgecolor='white')
+plt.title('Histogram of Flight Speed')
+plt.xlabel('Speed (km/h)')
+plt.ylabel('Frequency')
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| label: filtering
+#| echo: false
+
+flights_filter1 = flights.loc[flights['arr_delay']>=120] # 120 minutes
+#flights_filter1
+flights_filter2 = flights[(flights['dest'] == "HOU") | (flights['dest'] == "IAH")]
+#flights_filter2
+flights_filter3 = flights[(flights['arr_delay'] > 120) & (flights['dep_delay'] ==0)]
+#flights_filter3
+flights_filtered4 = flights[(flights['dep_delay'] >= 60) & ((flights['dep_delay'] - flights['arr_delay']) > 30)]
+#flights_filtered4
+```
+
+## The summarizing of the mean of the departure delay for each airport of the origin
+```{python}
+#| label: summarizing
+#| echo: false
+
+avg_delays = flights.groupby('origin')['dep_delay'].mean().reset_index()
+avg_delays
+```
+
+# Data Audit 
+
+## The scatterplot showing the location of the strange airports
+```{python}
+#| label: strangeairportlocations2
+#| echo: false
+strange_airports = airports[airports['lon'] > -65]
+
+plt.figure(figsize=(10, 6))
+sns.scatterplot(data=strange_airports, x='lon', y='lat', hue='tz', palette='viridis', edgecolor='white', linewidth=0.5, s=200)
+plt.title("Show the location of the strange airports")
+plt.xlabel("Longitude")
+plt.ylabel("Latitude")
+plt.legend(title="Timezone")
+plt.show(close=None, block=None)
+```
+
+As the graph shown above, you can see some strange airport locations of the United States of America which are **Deer Valley Municipal Airport**, **Dillant Hopkins Airport**, and **Montgomery Field**. From my internet research, I found two types of mistakes from the dataset ***nycflights13***. 
+
+First, some data in longitude should be shown in minus value. For example, **Deer Valley Municipal Airport** is located in Phoenix, Arizona, USA, where the latitude is 33.41170, and the longitude is -112.45700. On the other hand, **Montgomery Field** is located in San Diego, California, USA where the latitude is 32.47590, and the longitude is -117.75900. However, the data set shows that its incorrect longitudes are 112.457000 and 117.75900, respectively. 
+
+Second, The coordinates for **Dillant Hopkins Airport**, latitude 72.27083 and longitude 42.89833, appear to be incorrect or swapped. These values are unusual for an airport in Keene, New Hampshire, USA. The latitude value is exceptionally high, and the longitude value is unusually low for a location in the United States. A likely explanation is that there may be a data entry error or a mix-up in the dataset, resulting in the latitude and longitude being swapped or incorrectly entered. 
+
+However, the coordinates for **Eareckson Air Station**, latitude 52.71227 and longitude 174.11362, seem accurate for a location in Alaska. Eareckson Air Station is located on Shemya Island, which is part of the Aleutian Islands in Alaska, USA.
+
+# More Data Visualization
+
+In the following we provide some more information about the flights of different airlines, about the age or planes departing for the three New York airports and the weekly percipation on the three airports.
+
+## The bar chart showing number of flights for each airline
+```{python}
+#| label: graphsaboutairlines
+#| echo: false
+
+flights1 = pd.merge(flights, airlines, how='inner', left_on='carrier', right_on='carrier')
+
+airline_counts = flights1['name'].value_counts().reset_index()
+airline_counts.columns = ['name', 'count']
+airline_counts = airline_counts.sort_values(by='count', ascending=False)
+
+plt.figure(figsize=(10, 6))
+sns.barplot(x='count', y='name', data=airline_counts, palette='viridis')
+plt.title("The Number of Flights for Each Airline")
+plt.xlabel("Count of Flights")
+plt.ylabel("Airline")
+
+plt.show()
+```
+
+## The bar chart showing the mean of the departure delay by airline
+```{python}
+#| label: meandeparturedelay
+#| echo: false
+
+flights1 = pd.merge(flights, airlines, how='inner', left_on='carrier', right_on='carrier')
+
+summary_data = flights1.groupby("name")["dep_delay"].mean().reset_index()
+
+summary_data = summary_data.sort_values(by="dep_delay", ascending=False)
+
+plt.figure(figsize=(10, 6))
+sns.barplot(x="dep_delay", y="name", data=summary_data, palette="viridis")
+plt.xlabel("Average departure delay")
+plt.ylabel("Airline")
+plt.title("Flights by Airline (Descending Order)")
+plt.show()
+
+```
+
+## The bar chart showing the mean of departure delay and arrival delay by airline
+```{python}
+#| label: meanofdepandarrdelay
+#| echo: false
+
+mean_delay = flights.groupby(by="carrier")[["arr_delay", "dep_delay"]].mean().reset_index()
+thirdJoin = mean_delay.merge(airlines, left_on="carrier", right_on="carrier").melt(id_vars=["name", "carrier"], var_name="delay_type")
+
+plt.figure(figsize=(7,4))
+sns.barplot(thirdJoin, x="value", y="name", hue="delay_type")
+plt.title("Mean departure delay and mean arrival delay")
+plt.xlabel("Mean departure delay and mean arrival delay")
+plt.ylabel("")
+plt.legend(title ="Mean delay type", loc = "lower left")
+plt.show(close=None, block=None)
+```
+
+## The bar chart showing the number of departing planes by manufactured year
+```{python}
+#| label: departingplanesyear
+#| echo: false
+
+numdep = fourthJoin.groupby(["year_manufacturer", "name"]).size().reset_index(name="number_departures")
+
+g = sns.FacetGrid(numdep, col="name", col_wrap=3, height=4)
+
+g.map(plt.bar, "year_manufacturer", "number_departures", color="skyblue")
+
+g.set_titles("{col_name}")
+g.set_axis_labels("Manufactured Year", "Number of Departures")
+
+plt.tight_layout()
+plt.show()
+```
+
+## The line graph showing the total weekly precipitation at three airports
+```{python}
+#| label: weeklypercipation
+#| echo: false
+
+weather['date'] = weather['year'].astype(str) + '-' + weather['month'].astype(str) + '-' + weather['day'].astype(str)
+weather['date1'] = pd.to_datetime(weather['date'])
+weather['week'] = weather['date1'].dt.isocalendar().week
+
+weather_data_cleaned = weather.dropna(subset=['precip'])
+
+weather_data_cleaned['week'] = weather_data_cleaned['week'].astype(int)
+
+grouped_data = weather_data_cleaned.groupby(['week', 'origin']).agg(total_precipitation=('precip', 'sum')).reset_index()
+
+plt.figure(figsize=(10, 6))
+sns.lineplot(x='week', y='total_precipitation', hue='origin', data=grouped_data, palette='Set1')
+plt.title("Total Weekly Precipitation at Three Airports")
+plt.xlabel("Week")
+plt.ylabel("Total Precipitation")
+plt.legend(title="Airport", loc="upper right")
+plt.show()
+```
